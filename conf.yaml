@@ -1,0 +1,33 @@
+robot_car_data_dir: /mnt/sdb1/Radar_RobotCar
+nclt_data_dir: /mnt/sdb1/NCLT
+vReLoc_data_dir: /mnt/sdb1/vReLoc
+
+data_set: robotcar
+
+model: pointloc
+
+gpu_idx: 0,
+nThreads: 16
+divide_factor: 1.0
+lr: 0.01
+weight_decay: 0.005
+reduce_resolution_factor: 2
+gattnorm: ln
+gattactivation: relu
+
+scene: full8
+grid_size: 1
+feat_dim: 512
+
+save_out: true
+save_fig: false
+save_image: false
+
+exp_name: name
+
+beta: 0.0
+gamma: -3.0
+mask_flip_rate: 0.5
+
+bev_type: 'ego'
+bev_resize_size: 128
