@@ -1,0 +1,17 @@
+__pycache__/
+*.py[cod]
+*$py.class
+
+venv/
+.venv/
+env/
+
+.idea/
+.vscode/
+.DS_Store
+
+config_local.yaml
+.env
+
+outputs/
+inference_results/
