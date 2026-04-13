@@ -54,6 +54,11 @@ def main_worker(rank, world_size, conf, visible_gpus, args):
                 freeze_backbone=getattr(args, 'freeze_backbone', False),
                 grid_size=getattr(args, 'grid_size', 0.01)
             ).to(device)
+        elif args.model.lower() == "stcloc":
+            model = STCLoc(
+                steps=getattr(args, 'stcloc_steps', 1),
+                freeze_backbone=getattr(args, 'freeze_backbone', False)
+            ).to(device)
         else:
             raise ValueError("Not proper model input")
 
@@ -390,6 +395,7 @@ if __name__ == '__main__':
     parser.add_argument('--data', type=str, default="robotcar", help='Dataset name')
     parser.add_argument('--model', type=str, default="pointloc", help='Model name (pointloc, posepnpp, poseminkloc, stcloc)')
     parser.add_argument('--grid_size', type=float, default=0.01, help='Voxel grid size for PoseMinkLoc (meters)')
+    parser.add_argument('--stcloc_steps', type=int, default=1, help='Number of sequence steps for STCLoc temporal attention')
     parser.add_argument('--hidden_units', type=int, default=512, help='Hidden units for MARegressor (PosePN++)')
     parser.add_argument('--freeze_backbone', action='store_true', default=False, help='Freeze backbone parameters')
     parser.add_argument('--resume_epoch', type=int, default=-1, help='Resume epoch number')
