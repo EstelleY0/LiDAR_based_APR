@@ -2,7 +2,7 @@
 Unofficial implementation of LiDAR-based Absolute Pose Regression models
 
 
-## PointNet
+## PointLoc
 ```bibtex
 @article{wang2021pointloc,
   title={Pointloc: Deep pose regressor for lidar point cloud localization},
