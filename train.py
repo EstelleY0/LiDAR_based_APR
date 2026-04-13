@@ -61,7 +61,8 @@ def main_worker(rank, world_size, conf, visible_gpus, args):
             model = PoseMinkLoc(
                 hidden_units=getattr(args, 'hidden_units', 512),
                 freeze_backbone=getattr(args, 'freeze_backbone', False),
-                grid_size=getattr(args, 'grid_size', 0.01)
+                grid_size=getattr(args, 'grid_size', 0.01),
+                sparse_engine=getattr(args, 'sparse_engine', 'spconv')
             ).to(device)
         elif args.model.lower() == "stcloc":
             model = STCLoc(
@@ -416,7 +417,8 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--data', type=str, default="robotcar", help='Dataset name')
-    parser.add_argument('--model', type=str, default="pointloc", help='Model name (pointloc, posepnpp, poseminkloc, stcloc)')
+    parser.add_argument('--model', type=str, default="pointloc", help='Model name (pointloc, posepnpp, posepn, poseminkloc, stcloc, posesoe, hypliloc)')
+    parser.add_argument('--sparse_engine', type=str, default="spconv", choices=["spconv", "minkowski"], help='Sparse engine for PoseMinkLoc')
     parser.add_argument('--grid_size', type=float, default=0.01, help='Voxel grid size for PoseMinkLoc (meters)')
     parser.add_argument('--stcloc_steps', type=int, default=1, help='Number of sequence steps for STCLoc temporal attention')
     parser.add_argument('--hidden_units', type=int, default=512, help='Hidden units for MARegressor (PosePN++)')
