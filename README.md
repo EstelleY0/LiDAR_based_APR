@@ -32,6 +32,7 @@ Unofficial implementation of LiDAR-based Absolute Pose Regression models
 
 
 ## STCLoc
+[Official Git Repo](https://github.com/PSYZ1234/STCLoc)
 ```bibtex
 @article{yu2022stcloc,
   title={Stcloc: Deep lidar localization with spatio-temporal constraints},
