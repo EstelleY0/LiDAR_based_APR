@@ -1,4 +1,3 @@
-import torch
 import torch.nn as nn
 
 from model.pointnet.pointnet_utils import PointNetSetAbstraction
@@ -22,33 +21,3 @@ class PosePNPPEncoder(nn.Module):
         xyz, f = self.sa4(xyz, f)
         _, f = self.sa5(xyz, f)
         return f.squeeze(-1) # [B, 1024]
-
-class MARegressor(nn.Module):
-    def __init__(self, in_channel=1024, hidden_units=512):
-        super(MARegressor, self).__init__()
-
-        self.trans = nn.Sequential(
-            nn.Linear(in_channel, hidden_units),
-            nn.BatchNorm1d(hidden_units),
-            nn.ReLU(inplace=True),
-            nn.Linear(hidden_units, hidden_units // 2),
-            nn.BatchNorm1d(hidden_units // 2),
-            nn.ReLU(inplace=True),
-            nn.Linear(hidden_units // 2, 3)
-        )
-
-        self.logq = nn.Sequential(
-            nn.Linear(in_channel, hidden_units),
-            nn.BatchNorm1d(hidden_units),
-            nn.ReLU(inplace=True),
-            nn.Linear(hidden_units, hidden_units // 2),
-            nn.BatchNorm1d(hidden_units // 2),
-            nn.ReLU(inplace=True),
-            nn.Linear(hidden_units // 2, 3)
-        )
-
-    def forward(self, x):
-        t = self.trans(x)
-        r = self.logq(x)
-
-        return torch.cat([t, r], dim=-1)

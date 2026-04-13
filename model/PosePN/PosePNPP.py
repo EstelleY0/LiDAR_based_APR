@@ -1,6 +1,7 @@
 import torch.nn as nn
 
-from model.PosePN.modules import PosePNPPEncoder, MARegressor
+from model.PosePN.modules import PosePNPPEncoder
+from model.utils import MARegressor
 
 
 class PosePNPP(nn.Module):
