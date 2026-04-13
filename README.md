@@ -45,3 +45,16 @@ Unofficial implementation of LiDAR-based Absolute Pose Regression models
   publisher={IEEE}
 }
 ```
+
+
+## HypLiLoc
+[Official Git Repo](https://github.com/sijieaaa/HypLiLoc?tab=readme-ov-file)
+```bibtex
+@inproceedings{wang2023hypliloc,
+  title={HypLiLoc: Towards Effective LiDAR Pose Regression with Hyperbolic Fusion},
+  author={Wang, Sijie and Kang, Qiyu and She, Rui and Wang, Wei and Zhao, Kai and Song, Yang and Tay, Wee Peng},
+  booktitle={Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition},
+  pages={5176--5185},
+  year={2023}
+}
+```
