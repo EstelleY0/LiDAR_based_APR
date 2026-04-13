@@ -21,6 +21,7 @@ from tqdm import tqdm
 
 from data.nclt import NCLT
 from data.robotcar import RobotCar
+from data.vreloc import VReLoc
 from model.PosePN import PosePN
 from model.PosePN import PosePNPP
 from model.STCLoc import STCLoc
@@ -101,6 +102,10 @@ def main_worker(rank, world_size, conf, visible_gpus, args):
             data_dir = conf.nclt_data_dir
             train_set = NCLT(data_dir=data_dir, training=True)
             test_set = NCLT(data_dir=data_dir, training=False)
+        elif conf.data_set == 'vreloc':
+            data_dir = conf.vReLoc_data_dir
+            train_set = VReLoc(data_dir=data_dir, training=True)
+            test_set = VReLoc(data_dir=data_dir, training=False)
         else:
             raise ValueError("Not proper data set input")
 

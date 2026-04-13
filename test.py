@@ -8,6 +8,7 @@ import matplotlib.pyplot as plt
 
 from data.nclt import NCLT
 from data.robotcar import RobotCar
+from data.vreloc import VReLoc
 from model.PosePN import PosePNPP
 from model.PosePN import PosePN
 from model.STCLoc import STCLoc
@@ -20,7 +21,7 @@ def test():
     parser = argparse.ArgumentParser(description='Inference script for LiDAR-based APR')
     parser.add_argument('--model', type=str, required=True, help='Model name (pointloc, posepnpp, posepn, poseminkloc, stcloc, posesoe)')
     parser.add_argument('--checkpoint', type=str, required=True, help='Path to checkpoint (.pth.tar)')
-    parser.add_argument('--dataset', type=str, default='robotcar', choices=['robotcar', 'nclt'], help='Dataset name')
+    parser.add_argument('--dataset', type=str, default='robotcar', choices=['robotcar', 'nclt', 'vreloc'], help='Dataset name')
     parser.add_argument('--batch_size', type=int, default=1, help='Batch size for inference')
     parser.add_argument('--device', type=str, default='cuda' if torch.cuda.is_available() else 'cpu', help='Device to use')
     parser.add_argument('--save_fig', action='store_true', help='Save trajectory figure')
@@ -86,6 +87,8 @@ def test():
         test_set = RobotCar(data_dir=conf.robot_car_data_dir, training=False)
     elif args.dataset == 'nclt':
         test_set = NCLT(data_dir=conf.nclt_data_dir, training=False)
+    elif args.dataset == 'vreloc':
+        test_set = VReLoc(data_dir=conf.vReLoc_data_dir, training=False)
     
     test_loader = DataLoader(test_set, batch_size=args.batch_size, shuffle=False, num_workers=conf.nThreads)
 
