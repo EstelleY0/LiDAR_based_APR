@@ -14,11 +14,14 @@ class PointCloudEncoder(nn.Module):
         self.sa4 = PointNetSetAbstraction(npoint=256, radius=1.2, nsample=16, in_channel=256+3, mlp=[128, 128, 256], group_all=False)
 
     def forward(self, input):
+        if input.shape[-1] == 3:
+            input = input.transpose(1, 2)
         xyz, f = self.sa1(input, None)
         xyz, f = self.sa2(xyz, f)
         xyz, f = self.sa3(xyz, f)
         xyz, f = self.sa4(xyz, f)
         return xyz, f
+
 
 class SelfAttnModule(nn.Module):
     def __init__(self, feature_dim=256):
