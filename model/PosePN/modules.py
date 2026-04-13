@@ -1,5 +1,6 @@
 # Modified from PSYZ1234/PosePN (https://github.com/PSYZ1234/PosePN)
 
+import torch
 import torch.nn as nn
 
 from model.pointnet.pointnet_utils import PointNetSetAbstraction
@@ -23,3 +24,22 @@ class PosePNPPEncoder(nn.Module):
         xyz, f = self.sa4(xyz, f)
         _, f = self.sa5(xyz, f)
         return f.squeeze(-1) # [B, 1024]
+
+
+class PosePNEncoder(nn.Module):
+    def __init__(self, in_channel=3):
+        super(PosePNEncoder, self).__init__()
+        self.conv1 = nn.Conv1d(in_channel, 64, 1)
+        self.conv2 = nn.Conv1d(64, 128, 1)
+        self.conv3 = nn.Conv1d(128, 1024, 1)
+        self.bn1 = nn.BatchNorm1d(64)
+        self.bn2 = nn.BatchNorm1d(128)
+        self.bn3 = nn.BatchNorm1d(1024)
+
+    def forward(self, x):
+        # x is [B, 3, N]
+        x = F.relu(self.bn1(self.conv1(x)))
+        x = F.relu(self.bn2(self.conv2(x)))
+        x = F.relu(self.bn3(self.conv3(x)))
+        x = torch.max(x, 2, keepdim=True)[0]
+        return x.squeeze(-1) # [B, 1024]
