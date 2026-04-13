@@ -29,6 +29,7 @@ def test():
     parser.add_argument('--hidden_units', type=int, default=512, help='Hidden units for MARegressor')
     parser.add_argument('--stcloc_steps', type=int, default=1, help='Steps for STCLoc')
     parser.add_argument('--grid_size', type=float, default=0.01, help='Grid size for PoseMinkLoc')
+    parser.add_argument('--sparse_engine', type=str, default='spconv', choices=['spconv', 'minkowski'], help='Sparse engine for PoseMinkLoc')
 
     args = parser.parse_args()
     conf = load_config_as_namespace('conf.yaml')
@@ -48,7 +49,7 @@ def test():
             from model.PoseMinkLoc import PoseMinkLoc
         except ImportError:
             raise ImportError("MinkowskiEngine is required for PoseMinkLoc.")
-        model = PoseMinkLoc(hidden_units=args.hidden_units, grid_size=args.grid_size)
+        model = PoseMinkLoc(hidden_units=args.hidden_units, grid_size=args.grid_size, sparse_engine=args.sparse_engine)
     elif args.model.lower() == "stcloc":
         model = STCLoc(steps=args.stcloc_steps)
     elif args.model.lower() == "posesoe":
