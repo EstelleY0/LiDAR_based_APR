@@ -90,7 +90,7 @@ def main_worker(rank, world_size, conf, visible_gpus, args):
 
         sampler = DistributedSampler(train_set, num_replicas=world_size, rank=rank)
         train_loader = DataLoader(train_set, batch_size=args.batchsize, sampler=sampler,
-                                  num_workers=conf.nThreads, pin_memory=True, prefetch_factor=2, persistent_workers=True)
+                                  num_workers=conf.nThreads, pin_memory=True, prefetch_factor=2, persistent_workers=True, drop_last=True)
 
         sampler = DistributedSampler(test_set, num_replicas=world_size, rank=rank, shuffle=False)
         test_loader = DataLoader(test_set, batch_size=args.batchsize, sampler=sampler,
