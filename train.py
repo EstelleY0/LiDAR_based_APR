@@ -23,6 +23,7 @@ from data.nclt import NCLT
 from data.robotcar import RobotCar
 from model.PosePN import PosePNPP
 from model.STCLoc import STCLoc
+from model.PoseSOE import PoseSOE
 from model.pointLoc.PointLoc import PointLoc
 from utils.loss import AtLocCriterion
 from utils.train_utils import setup, cleanup, set_seed, mkdirs, load_state_dict, load_config_as_namespace, \
@@ -57,6 +58,11 @@ def main_worker(rank, world_size, conf, visible_gpus, args):
         elif args.model.lower() == "stcloc":
             model = STCLoc(
                 steps=getattr(args, 'stcloc_steps', 1),
+                freeze_backbone=getattr(args, 'freeze_backbone', False)
+            ).to(device)
+        elif args.model.lower() == "posesoe":
+            model = PoseSOE(
+                hidden_units=getattr(args, 'hidden_units', 512),
                 freeze_backbone=getattr(args, 'freeze_backbone', False)
             ).to(device)
         else:
