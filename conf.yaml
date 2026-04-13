@@ -9,8 +9,8 @@ model: pointloc
 gpu_idx: 0,
 nThreads: 16
 divide_factor: 1.0
-lr: 0.01
-weight_decay: 0.005
+lr: 0.001
+weight_decay: 0.001
 reduce_resolution_factor: 2
 gattnorm: ln
 gattactivation: relu

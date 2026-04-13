@@ -87,7 +87,10 @@ def main_worker(rank, world_size, conf, visible_gpus, args):
         train_criterion = AtLocCriterion(saq=conf.beta, learn_beta=True)
         train_criterion.to(device)
 
-        param_list = [{'params': model.parameters()}]
+        param_list = [
+            {'params': model.parameters()},
+            {'params': train_criterion.parameters()}
+        ]
 
         optimizer = torch.optim.AdamW(param_list, lr=conf.lr, weight_decay=conf.weight_decay)
         lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=25, gamma=0.5)

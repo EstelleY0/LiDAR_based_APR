@@ -101,7 +101,8 @@ def qlog(q):
     if all(q[1:] == 0):
         q = np.zeros(3)
     else:
-        q = np.arccos(q[0]) * q[1:] / np.linalg.norm(q[1:])
+        q_w = np.clip(q[0], -1.0 + 1e-7, 1.0 - 1e-7)
+        q = np.arccos(q_w) * q[1:] / np.linalg.norm(q[1:])
     return q
 
 def qexp(q):
