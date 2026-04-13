@@ -12,6 +12,7 @@ from model.PosePN import PosePNPP
 from model.PosePN import PosePN
 from model.STCLoc import STCLoc
 from model.PoseSOE import PoseSOE
+from model.HypLiLoc import HypLiLoc
 from model.pointLoc.PointLoc import PointLoc
 from utils.train_utils import load_config_as_namespace, quaternion_angular_error, qexp
 
@@ -52,6 +53,8 @@ def test():
         model = STCLoc(steps=args.stcloc_steps)
     elif args.model.lower() == "posesoe":
         model = PoseSOE(hidden_units=args.hidden_units)
+    elif args.model.lower() == "hypliloc":
+        model = HypLiLoc(hidden_units=args.hidden_units)
     else:
         raise ValueError(f"Unknown model: {args.model}")
 
