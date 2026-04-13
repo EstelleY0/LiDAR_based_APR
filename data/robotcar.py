@@ -37,7 +37,6 @@ class RobotCar(data.Dataset):
 
             elif conf.scene == 'full9':
                 seqs = ['2019-01-18-14-14-42-radar-oxford-10k']  # full 9
-        seqs = ['2019-01-17-14-03-00-radar-oxford-10k']  # full 8
 
         ps = {}
         ts = {}
