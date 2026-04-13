@@ -1,3 +1,5 @@
+# Modified from PSYZ1234/STCLoc (https://github.com/PSYZ1234/STCLoc)
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F

@@ -1,3 +1,5 @@
+# Modified from PSYZ1234/PosePN (https://github.com/PSYZ1234/PosePN)
+
 import torch.nn as nn
 
 from model.PosePN.modules import PosePNPPEncoder
