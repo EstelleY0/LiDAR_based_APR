@@ -1,18 +1,19 @@
+import sys
+import os
+
+# Prioritize local directory in sys.path
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
 import argparse
 import glob
-import os
-import os.path as osp
-import re
-import sys
-import time
-from pathlib import Path
-
 import matplotlib.pyplot as plt
 import numpy as np
+import os.path as osp
+import re
+import time
 import torch
-import torch.distributed as dist
 import torch.multiprocessing as mp
-from docutils.parsers.rst.roles import unimplemented_role
+from pathlib import Path
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.utils.data import DataLoader, DistributedSampler
 from torch.utils.tensorboard import SummaryWriter
@@ -20,11 +21,11 @@ from tqdm import tqdm
 
 from data.nclt import NCLT
 from data.robotcar import RobotCar
+from model.PosePN import PosePNPP
 from model.pointLoc.PointLoc import PointLoc
 from utils.loss import AtLocCriterion
-
-from utils.train_utils import setup, cleanup, set_seed, mkdirs, load_state_dict, load_config_as_namespace, quaternion_angular_error, qexp
-
+from utils.train_utils import setup, cleanup, set_seed, mkdirs, load_state_dict, load_config_as_namespace, \
+    quaternion_angular_error, qexp
 
 
 def main_worker(rank, world_size, conf, visible_gpus, args):
@@ -37,6 +38,11 @@ def main_worker(rank, world_size, conf, visible_gpus, args):
         device = torch.device(f"cuda:{local_gpu_id}")
         if args.model.lower() == "pointloc":
             model = PointLoc().to(device)
+        elif args.model.lower() == "posepnpp":
+            model = PosePNPP(
+                hidden_units=getattr(args, 'hidden_units', 512),
+                freeze_backbone=getattr(args, 'freeze_backbone', False)
+            ).to(device)
         else:
             raise ValueError("Not proper model input")
 
@@ -370,6 +376,10 @@ if __name__ == '__main__':
     args = load_config_as_namespace("conf.yaml")
 
     parser = argparse.ArgumentParser()
+    parser.add_argument('--data', type=str, default="robotcar", help='Dataset name')
+    parser.add_argument('--model', type=str, default="pointloc", help='Model name (pointloc, posepnpp)')
+    parser.add_argument('--hidden_units', type=int, default=512, help='Hidden units for MARegressor (PosePN++)')
+    parser.add_argument('--freeze_backbone', action='store_true', default=False, help='Freeze backbone parameters (PosePN++)')
     parser.add_argument('--resume_epoch', type=int, default=-1, help='Resume epoch number')
     parser.add_argument('--epoch_test', type=int, default=0, help='Epoch number')
     parser.add_argument('--epochs', type=int, default=150, help='Epoch number')
@@ -381,7 +391,8 @@ if __name__ == '__main__':
 
     cli_args = parser.parse_args()
     for key, value in vars(cli_args).items():
-        setattr(args, key, value)
+        if value is not None:
+            setattr(args, key, value)
 
     required_paths = [os.path.join(args.folder, 'runs'),
                       os.path.join(args.folder, 'models'),
