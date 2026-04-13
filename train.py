@@ -21,6 +21,7 @@ from tqdm import tqdm
 
 from data.nclt import NCLT
 from data.robotcar import RobotCar
+from model.PosePN import PosePN
 from model.PosePN import PosePNPP
 from model.STCLoc import STCLoc
 from model.PoseSOE import PoseSOE
@@ -42,6 +43,11 @@ def main_worker(rank, world_size, conf, visible_gpus, args):
             model = PointLoc().to(device)
         elif args.model.lower() == "posepnpp":
             model = PosePNPP(
+                hidden_units=getattr(args, 'hidden_units', 512),
+                freeze_backbone=getattr(args, 'freeze_backbone', False)
+            ).to(device)
+        elif args.model.lower() == "posepn":
+            model = PosePN(
                 hidden_units=getattr(args, 'hidden_units', 512),
                 freeze_backbone=getattr(args, 'freeze_backbone', False)
             ).to(device)
