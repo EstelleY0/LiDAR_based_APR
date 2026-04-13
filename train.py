@@ -22,6 +22,7 @@ from tqdm import tqdm
 from data.nclt import NCLT
 from data.robotcar import RobotCar
 from model.PosePN import PosePNPP
+from model.STCLoc import STCLoc
 from model.pointLoc.PointLoc import PointLoc
 from utils.loss import AtLocCriterion
 from utils.train_utils import setup, cleanup, set_seed, mkdirs, load_state_dict, load_config_as_namespace, \
@@ -42,6 +43,16 @@ def main_worker(rank, world_size, conf, visible_gpus, args):
             model = PosePNPP(
                 hidden_units=getattr(args, 'hidden_units', 512),
                 freeze_backbone=getattr(args, 'freeze_backbone', False)
+            ).to(device)
+        elif args.model.lower() == "poseminkloc":
+            try:
+                from model.PoseMinkLoc import PoseMinkLoc
+            except ImportError:
+                raise ImportError("MinkowskiEngine is required for PoseMinkLoc but could not be imported.")
+            model = PoseMinkLoc(
+                hidden_units=getattr(args, 'hidden_units', 512),
+                freeze_backbone=getattr(args, 'freeze_backbone', False),
+                grid_size=getattr(args, 'grid_size', 0.01)
             ).to(device)
         else:
             raise ValueError("Not proper model input")
@@ -377,9 +388,10 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--data', type=str, default="robotcar", help='Dataset name')
-    parser.add_argument('--model', type=str, default="pointloc", help='Model name (pointloc, posepnpp)')
+    parser.add_argument('--model', type=str, default="pointloc", help='Model name (pointloc, posepnpp, poseminkloc, stcloc)')
+    parser.add_argument('--grid_size', type=float, default=0.01, help='Voxel grid size for PoseMinkLoc (meters)')
     parser.add_argument('--hidden_units', type=int, default=512, help='Hidden units for MARegressor (PosePN++)')
-    parser.add_argument('--freeze_backbone', action='store_true', default=False, help='Freeze backbone parameters (PosePN++)')
+    parser.add_argument('--freeze_backbone', action='store_true', default=False, help='Freeze backbone parameters')
     parser.add_argument('--resume_epoch', type=int, default=-1, help='Resume epoch number')
     parser.add_argument('--epoch_test', type=int, default=0, help='Epoch number')
     parser.add_argument('--epochs', type=int, default=150, help='Epoch number')
