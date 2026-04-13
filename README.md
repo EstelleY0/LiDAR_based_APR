@@ -17,7 +17,7 @@ Unofficial implementation of LiDAR-based Absolute Pose Regression models
 ```
 
 
-## PosePN++, PoseMinkLoc, PoseSOE
+## PosePN, PosePN++, PoseMinkLoc, PoseSOE
 ```bibtex
 @article{yu2022lidar,
   title={LiDAR-based localization using universal encoding and memory-aware regression},
