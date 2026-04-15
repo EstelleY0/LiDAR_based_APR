@@ -84,7 +84,7 @@ def main_worker(rank, world_size, conf, visible_gpus, args):
 
         model = DDP(model, device_ids=[local_gpu_id], find_unused_parameters=True)
 
-        train_criterion = AtLocCriterion(saq=conf.beta, learn_beta=True)
+        train_criterion = AtLocCriterion(sax=conf.beta, saq=conf.gamma, learn_beta=True)
         train_criterion.to(device)
 
         param_list = [
