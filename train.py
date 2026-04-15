@@ -30,7 +30,7 @@ from model.HypLiLoc import HypLiLoc
 from model.pointLoc.PointLoc import PointLoc
 from utils.loss import AtLocCriterion
 from utils.train_utils import setup, cleanup, set_seed, mkdirs, load_state_dict, load_config_as_namespace, \
-    quaternion_angular_error, qexp
+    quaternion_angular_error, qexp, EarlyStopping
 
 
 def main_worker(rank, world_size, conf, visible_gpus, args):
@@ -126,6 +126,10 @@ def main_worker(rank, world_size, conf, visible_gpus, args):
         global_step = 0
         tq_mean_error_best = [10000., 10000., 0, 10000.]
         tq_median_error_best = [10000., 10000., 0, 10000.]
+
+        early_stopping = None
+        if rank == 0 and args.early_stop_patience > 0:
+            early_stopping = EarlyStopping(patience=args.early_stop_patience, delta=args.early_stop_delta, verbose=True)
 
         resume_epoch = args.resume_epoch
         epochs = args.epochs
@@ -293,13 +297,14 @@ def main_worker(rank, world_size, conf, visible_gpus, args):
                         t_mean_error = np.mean(t_loss)
                         q_mean_error = np.mean(q_loss)
 
-                        print(f"[Epoch {epoch}]")
-                        print(f"  Translation Error (median): {t_median_error:.3f} m")
-                        print(f"  Rotation Error (median): {q_median_error:.3f} deg")
-                        print(f"  Translation Error (mean): {t_mean_error:.3f} m")
-                        print(f"  Rotation Error (mean): {q_mean_error:.3f} deg")
+                        if rank == 0:
+                            print(f"[Epoch {epoch}]")
+                            print(f"  Translation Error (median): {t_median_error:.3f} m")
+                            print(f"  Rotation Error (median): {q_median_error:.3f} deg")
+                            print(f"  Translation Error (mean): {t_mean_error:.3f} m")
+                            print(f"  Rotation Error (mean): {q_mean_error:.3f} deg")
 
-                        if conf.save_fig:
+                        if conf.save_fig and rank == 0:
                             xyz_gt = targ_poses[:, :3]
 
                             xyz_pred = pred_poses[:, :3]
@@ -358,20 +363,32 @@ def main_worker(rank, world_size, conf, visible_gpus, args):
                         f'Train/test {experiment_name}\t Epoch {epoch}\t Lr {now_lr:.6f}\t Time {time.time() - t0:.2f}',
                         '-----------------------'
                     ])
-                    with open(f'{args.folder}/results/results_{conf.bev_type}_{conf.bev_resize_size}.txt', 'a') as f:
-                        f.write('\n'.join(txt) + '\n')
+                    if rank == 0:
+                        with open(f'{args.folder}/results/results_{conf.bev_type}_{conf.bev_resize_size}.txt', 'a') as f:
+                            f.write('\n'.join(txt) + '\n')
 
                     filename = osp.join(weights_folder, f'epoch_{epoch}.pth.tar')
-                    torch.save({
-                        'epoch': epoch,
-                        'global_step': global_step,
-                        'model_state_dict': model.module.state_dict(),
-                        'optim_state_dict': optimizer.state_dict(),
-                        'criterion_state_dict': train_criterion.state_dict(),
-                        'tq_mean_error_best': tq_mean_error_best,
-                        'tq_median_error_best': tq_median_error_best,
-                        'args': args,
-                    }, filename)
+                    if rank == 0:
+                        torch.save({
+                            'epoch': epoch,
+                            'global_step': global_step,
+                            'model_state_dict': model.module.state_dict(),
+                            'optim_state_dict': optimizer.state_dict(),
+                            'criterion_state_dict': train_criterion.state_dict(),
+                            'tq_mean_error_best': tq_mean_error_best,
+                            'tq_median_error_best': tq_median_error_best,
+                            'args': args,
+                        }, filename)
+
+                stop_signal = torch.tensor(0).to(device)
+                if rank == 0 and early_stopping is not None:
+                    early_stopping(t_mean + q_mean)
+                    if early_stopping.early_stop:
+                        print(f"Early stopping triggered at epoch {epoch}")
+                        stop_signal = torch.tensor(1).to(device)
+
+                if stop_signal.item() == 1:
+                    break
 
                 if writer:
                     writer.flush()
@@ -430,6 +447,8 @@ if __name__ == '__main__':
     parser.add_argument('--epoch_test', type=int, default=0, help='Epoch number')
     parser.add_argument('--epochs', type=int, default=150, help='Epoch number')
     parser.add_argument('--save_freq', type=int, default=1000, help='Eval save frequency')
+    parser.add_argument('--early_stop_patience', type=int, default=-1, help='Patience for early stopping (default: -1, disabled)')
+    parser.add_argument('--early_stop_delta', type=float, default=0.0, help='Delta for early stopping')
     parser.add_argument('--batchsize', type=int, default=32, help='Batch size')
     parser.add_argument('--batchsize_test', type=int, default=1, help='Test batch size')
     parser.add_argument('--folder', type=str, default='gpu1', help='Folder name for results or config')
