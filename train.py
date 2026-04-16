@@ -28,6 +28,7 @@ from model.STCLoc import STCLoc
 from model.PoseSOE import PoseSOE
 from model.HypLiLoc import HypLiLoc
 from model.pointLoc.PointLoc import PointLoc
+from model.APRBiCA import APRBiCA
 from utils.loss import AtLocCriterion
 from utils.train_utils import setup, cleanup, set_seed, mkdirs, load_state_dict, load_config_as_namespace, \
     quaternion_angular_error, qexp, EarlyStopping
@@ -78,6 +79,10 @@ def main_worker(rank, world_size, conf, visible_gpus, args):
             model = HypLiLoc(
                 hidden_units=getattr(args, 'hidden_units', 512),
                 freeze_backbone=getattr(args, 'freeze_backbone', False)
+            ).to(device)
+        elif args.model.lower() == "aprbica":
+            model = APRBiCA(
+                hidden_units=getattr(args, 'hidden_units', 512)
             ).to(device)
         else:
             raise ValueError("Not proper model input")
