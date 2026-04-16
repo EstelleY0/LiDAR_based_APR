@@ -3,10 +3,12 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+
 from model.STCLoc.modules import STCLocEncoder, STCLocDecoder
 
+
 class STCLoc(nn.Module):
-    def __init__(self, steps=1, num_class_loc=4096, num_class_ori=3, freeze_backbone=False):
+    def __init__(self, steps=1, num_class_loc=10, num_class_ori=10, freeze_backbone=False):
         super(STCLoc, self).__init__()
         self.encoder         = STCLocEncoder(steps=steps, feature_correlation=(steps > 1))
         
@@ -48,7 +50,10 @@ class STCLoc(nn.Module):
         t        = self.fc_position(z)  # [B*T, 3]
         q        = self.fc_orientation(z)  # [B*T, 3]
         
-        # We output only the [B, 6] pose to match train.py, discarding classification outputs 
-        # since our dataset does not generate classification labels right now.
+        cls_loc  = self.fc_cls_loc(loc)
+        cls_ori  = self.fc_cls_ori(ori)
+        cls_loc  = F.log_softmax(cls_loc, dim=1)
+        cls_ori  = F.log_softmax(cls_ori, dim=1)
+        
         pose = torch.cat([t, q], dim=-1)
-        return pose
+        return pose, cls_loc, cls_ori
