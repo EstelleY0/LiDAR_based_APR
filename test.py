@@ -138,9 +138,9 @@ def test():
             q_targ = [qexp(p[3:]) for p in target_np]
             target_np = np.hstack((target_np[:, :3], np.asarray(q_targ)))
 
-            # Denormalize translation
-            pose_m = test_set.mean_t
-            pose_s = test_set.std_t
+            base_test_set = test_set.dataset if hasattr(test_set, 'dataset') else test_set
+            pose_m = base_test_set.mean_t
+            pose_s = base_test_set.std_t
             output_np[:, :3] = (output_np[:, :3] * pose_s) + pose_m
             target_np[:, :3] = (target_np[:, :3] * pose_s) + pose_m
 
