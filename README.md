@@ -69,5 +69,4 @@ Unofficial implementation of LiDAR-based Absolute Pose Regression models
   year={2025},
   publisher={Elsevier}
 }
-}
 ```
