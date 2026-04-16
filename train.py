@@ -226,7 +226,7 @@ def main_worker(rank, world_size, conf, visible_gpus, args):
             for batch_idx, feed_dict in pbar:
                 lidar = feed_dict['lidar_float32'].to(device)
                 pose = feed_dict['pose_float32'].to(device).detach()
-                
+
                 if lidar.dim() == 4: # [B, T, N, 3]
                     B, T, N, C = lidar.shape
                     lidar = lidar.view(B * T, N, C)
@@ -243,7 +243,7 @@ def main_worker(rank, world_size, conf, visible_gpus, args):
                         pred_pose, pred_loc, pred_ori = output
                         cls_loc_target = feed_dict['cls_loc'].to(device)
                         cls_ori_target = feed_dict['cls_ori'].to(device)
-                        
+
                         final_loss, pose_loss, cls_loss = train_criterion(
                             pred_pose, pred_loc, pred_ori, target, cls_loc_target, cls_ori_target
                         )
@@ -306,6 +306,12 @@ def main_worker(rank, world_size, conf, visible_gpus, args):
                     for batch_idx, feed_dict in enumerate(test_pbar):
                         lidar = feed_dict['lidar_float32'].to(device)
                         pose = feed_dict['pose_float32'].to(device)
+                        
+                        if lidar.dim() == 4:
+                            B, T, N, C = lidar.shape
+                            lidar = lidar.view(B * T, N, C)
+                            pose = pose.view(B * T, -1)
+
                         target = pose.clone().detach()
 
                         with torch.set_grad_enabled(False):
@@ -322,6 +328,7 @@ def main_worker(rank, world_size, conf, visible_gpus, args):
                         q = [qexp(p[3:]) for p in target]
                         target = np.hstack((target[:, :3], np.asarray(q)))
 
+                        test_set = test_set.dataset if hasattr(test_set, 'dataset') else test_set
                         pose_m = test_set.mean_t
                         pose_s = test_set.std_t
 
