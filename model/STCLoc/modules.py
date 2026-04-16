@@ -3,7 +3,9 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+
 from model.pointnet.pointnet_utils import PointNetSetAbstraction
+
 
 def similarity(feat1, feat2, feat3):
     B, _, D  = feat1.size()

@@ -25,7 +25,10 @@ early_stop_delta: 0.0
 
 sparse_engine: spconv
 grid_size: 1
-stcloc_steps: 1
+stcloc_steps: 3
+stcloc_skip: 2
+num_class_loc: 10
+num_class_ori: 10
 hidden_units: 512
 freeze_backbone: false
 reduce_resolution_factor: 2

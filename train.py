@@ -1,5 +1,5 @@
-import sys
 import os
+import sys
 
 # Prioritize local directory in sys.path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -29,7 +29,7 @@ from model.PoseSOE import PoseSOE
 from model.HypLiLoc import HypLiLoc
 from model.pointLoc.PointLoc import PointLoc
 from model.APRBiCA import APRBiCA
-from utils.loss import AtLocCriterion
+from utils.loss import AtLocCriterion, STCLocCriterion
 from utils.train_utils import setup, cleanup, set_seed, mkdirs, load_state_dict, load_config_as_namespace, \
     quaternion_angular_error, qexp, EarlyStopping
 
@@ -78,8 +78,11 @@ def main_worker(rank, world_size, conf, visible_gpus, args):
                 sparse_engine=getattr(args, 'sparse_engine', 'spconv')
             ).to(device)
         elif args.model.lower() == "stcloc":
+            num_loc = getattr(args, 'num_class_loc', 10)
             model = STCLoc(
-                steps=getattr(args, 'stcloc_steps', 1),
+                steps=getattr(args, 'stcloc_steps', 3),
+                num_class_loc=num_loc * num_loc,
+                num_class_ori=getattr(args, 'num_class_ori', 10),
                 freeze_backbone=getattr(args, 'freeze_backbone', False)
             ).to(device)
         elif args.model.lower() == "posesoe":
@@ -101,7 +104,11 @@ def main_worker(rank, world_size, conf, visible_gpus, args):
 
         model = DDP(model, device_ids=[local_gpu_id], find_unused_parameters=True)
 
-        train_criterion = AtLocCriterion(sax=conf.beta, saq=conf.gamma, learn_beta=True)
+        if args.model.lower() == "stcloc":
+            train_criterion = STCLocCriterion()
+        else:
+            train_criterion = AtLocCriterion(sax=conf.beta, saq=conf.gamma, learn_beta=True)
+            
         train_criterion.to(device)
 
         param_list = [
@@ -115,20 +122,30 @@ def main_worker(rank, world_size, conf, visible_gpus, args):
         cur_file_path = os.path.realpath(__file__)
         ws_path = Path(cur_file_path).parent
 
+        num_class_loc = getattr(args, 'num_class_loc', 10)
+        num_class_ori = getattr(args, 'num_class_ori', 10)
+
         if conf.data_set == 'robotcar':
             data_dir = conf.robot_car_data_dir
-            train_set = RobotCar(data_dir=data_dir, training=True)
-            test_set = RobotCar(data_dir=data_dir, training=False)
+            train_set = RobotCar(data_dir=data_dir, training=True, num_class_loc=num_class_loc, num_class_ori=num_class_ori)
+            test_set = RobotCar(data_dir=data_dir, training=False, num_class_loc=num_class_loc, num_class_ori=num_class_ori)
         elif conf.data_set == 'nclt':
             data_dir = conf.nclt_data_dir
-            train_set = NCLT(data_dir=data_dir, training=True)
-            test_set = NCLT(data_dir=data_dir, training=False)
+            train_set = NCLT(data_dir=data_dir, training=True, num_class_loc=num_class_loc, num_class_ori=num_class_ori)
+            test_set = NCLT(data_dir=data_dir, training=False, num_class_loc=num_class_loc, num_class_ori=num_class_ori)
         elif conf.data_set == 'vreloc':
             data_dir = conf.vReLoc_data_dir
-            train_set = VReLoc(data_dir=data_dir, training=True)
-            test_set = VReLoc(data_dir=data_dir, training=False)
+            train_set = VReLoc(data_dir=data_dir, training=True, num_class_loc=num_class_loc, num_class_ori=num_class_ori)
+            test_set = VReLoc(data_dir=data_dir, training=False, num_class_loc=num_class_loc, num_class_ori=num_class_ori)
         else:
             raise ValueError("Not proper data set input")
+
+        stcloc_steps = getattr(args, 'stcloc_steps', 3)
+        stcloc_skip = getattr(args, 'stcloc_skip', 1)
+        if args.model.lower() == "stcloc" and stcloc_steps > 1:
+            from data.composition import SequenceDataset
+            train_set = SequenceDataset(train_set, steps=stcloc_steps, skip=stcloc_skip)
+            test_set = SequenceDataset(test_set, steps=stcloc_steps, skip=stcloc_skip)
 
         weights_folder = os.path.join(ws_path, f'{args.folder}', 'models')
 
@@ -209,13 +226,30 @@ def main_worker(rank, world_size, conf, visible_gpus, args):
             for batch_idx, feed_dict in pbar:
                 lidar = feed_dict['lidar_float32'].to(device)
                 pose = feed_dict['pose_float32'].to(device).detach()
+                
+                if lidar.dim() == 4: # [B, T, N, 3]
+                    B, T, N, C = lidar.shape
+                    lidar = lidar.view(B * T, N, C)
+                    pose = pose.view(B * T, -1)
+                    if 'cls_loc' in feed_dict:
+                        feed_dict['cls_loc'] = feed_dict['cls_loc'].view(B * T)
+                        feed_dict['cls_ori'] = feed_dict['cls_ori'].view(B * T)
+
                 target = pose.clone().detach()
 
                 with torch.set_grad_enabled(True):
                     output = model(lidar)
-                    pose_loss = sum(train_criterion(output, target))
-
-                    final_loss = pose_loss
+                    if isinstance(output, tuple):
+                        pred_pose, pred_loc, pred_ori = output
+                        cls_loc_target = feed_dict['cls_loc'].to(device)
+                        cls_ori_target = feed_dict['cls_ori'].to(device)
+                        
+                        final_loss, pose_loss, cls_loss = train_criterion(
+                            pred_pose, pred_loc, pred_ori, target, cls_loc_target, cls_ori_target
+                        )
+                    else:
+                        final_loss = train_criterion(output, target)
+                        final_loss = pose_loss
 
                 final_loss.backward()
                 torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=args.clip_grad_norm)
@@ -232,8 +266,9 @@ def main_worker(rank, world_size, conf, visible_gpus, args):
                     pbar.set_description(desc='loss:{:.4f}'.format(final_loss.item()))
                     writer.add_scalar('Loss/iteration', final_loss.item(), global_step)
                     writer.add_scalar('Loss/pose', pose_loss.item(), global_step)
-                    writer.add_scalar('train_criterion/sax', train_criterion.sax, global_step)
-                    writer.add_scalar('train_criterion/saq', train_criterion.saq, global_step)
+                    if hasattr(train_criterion, 'sax'):
+                        writer.add_scalar('train_criterion/sax', train_criterion.sax.item(), global_step)
+                        writer.add_scalar('train_criterion/saq', train_criterion.saq.item(), global_step)
                     global_step += 1
 
             lr_scheduler.step()
@@ -275,6 +310,8 @@ def main_worker(rank, world_size, conf, visible_gpus, args):
 
                         with torch.set_grad_enabled(False):
                             output = model(lidar)
+                            if isinstance(output, tuple):
+                                output = output[0]
 
                         s = output.size() # [b,6]
                         output = output.cpu().detach().numpy().reshape((-1, s[-1]))
@@ -486,6 +523,9 @@ if __name__ == '__main__':
     parser.add_argument('--sparse_engine', type=str, choices=["spconv", "minkowski"], help='Sparse engine')
     parser.add_argument('--grid_size', type=float, help='Voxel grid size')
     parser.add_argument('--stcloc_steps', type=int, help='STCLoc steps')
+    parser.add_argument('--stcloc_skip', type=int, help='STCLoc skip')
+    parser.add_argument('--num_class_loc', type=int, help='STCLoc num_class_loc')
+    parser.add_argument('--num_class_ori', type=int, help='STCLoc num_class_ori')
     parser.add_argument('--hidden_units', type=int, help='Hidden units for regressor')
     parser.add_argument('--freeze_backbone', type=str2bool, help='Freeze backbone')
     parser.add_argument('--reduce_resolution_factor', type=int, help='Resolution reduction factor')

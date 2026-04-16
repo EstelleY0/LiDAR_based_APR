@@ -1,22 +1,24 @@
-import os
 import argparse
+import argparse
+
+import matplotlib.pyplot as plt
 import numpy as np
 import torch
 from torch.utils.data import DataLoader
 from tqdm import tqdm
-import matplotlib.pyplot as plt
 
 from data.nclt import NCLT
 from data.robotcar import RobotCar
 from data.vreloc import VReLoc
-from model.PosePN import PosePNPP
-from model.PosePN import PosePN
-from model.STCLoc import STCLoc
-from model.PoseSOE import PoseSOE
-from model.HypLiLoc import HypLiLoc
-from model.pointLoc.PointLoc import PointLoc
 from model.APRBiCA import APRBiCA
+from model.HypLiLoc import HypLiLoc
+from model.PosePN import PosePN
+from model.PosePN import PosePNPP
+from model.PoseSOE import PoseSOE
+from model.STCLoc import STCLoc
+from model.pointLoc.PointLoc import PointLoc
 from utils.train_utils import load_config_as_namespace, quaternion_angular_error, qexp
+
 
 def test():
     parser = argparse.ArgumentParser(description='Inference script for LiDAR-based APR')
@@ -29,7 +31,10 @@ def test():
     
     # Model specific args
     parser.add_argument('--hidden_units', type=int, default=512, help='Hidden units for MARegressor')
-    parser.add_argument('--stcloc_steps', type=int, default=1, help='Steps for STCLoc')
+    parser.add_argument('--stcloc_steps', type=int, default=3, help='Steps for STCLoc')
+    parser.add_argument('--stcloc_skip', type=int, default=2, help='Skip for STCLoc')
+    parser.add_argument('--num_class_loc', type=int, default=10, help='STCLoc num_class_loc')
+    parser.add_argument('--num_class_ori', type=int, default=10, help='STCLoc num_class_ori')
     parser.add_argument('--grid_size', type=float, default=0.01, help='Grid size for PoseMinkLoc')
     parser.add_argument('--sparse_engine', type=str, default='spconv', choices=['spconv', 'minkowski'], help='Sparse engine for PoseMinkLoc')
 
@@ -53,7 +58,12 @@ def test():
             raise ImportError("MinkowskiEngine is required for PoseMinkLoc.")
         model = PoseMinkLoc(hidden_units=args.hidden_units, grid_size=args.grid_size, sparse_engine=args.sparse_engine)
     elif args.model.lower() == "stcloc":
-        model = STCLoc(steps=args.stcloc_steps)
+        num_loc = args.num_class_loc
+        model = STCLoc(
+            steps=args.stcloc_steps,
+            num_class_loc=num_loc * num_loc,
+            num_class_ori=args.num_class_ori
+        )
     elif args.model.lower() == "posesoe":
         model = PoseSOE(hidden_units=args.hidden_units)
     elif args.model.lower() == "hypliloc":
@@ -88,12 +98,16 @@ def test():
 
     # Load dataset
     if args.dataset == 'robotcar':
-        test_set = RobotCar(data_dir=conf.robot_car_data_dir, training=False)
+        test_set = RobotCar(data_dir=conf.robot_car_data_dir, training=False, num_class_loc=args.num_class_loc, num_class_ori=args.num_class_ori)
     elif args.dataset == 'nclt':
-        test_set = NCLT(data_dir=conf.nclt_data_dir, training=False)
+        test_set = NCLT(data_dir=conf.nclt_data_dir, training=False, num_class_loc=args.num_class_loc, num_class_ori=args.num_class_ori)
     elif args.dataset == 'vreloc':
-        test_set = VReLoc(data_dir=conf.vReLoc_data_dir, training=False)
+        test_set = VReLoc(data_dir=conf.vReLoc_data_dir, training=False, num_class_loc=args.num_class_loc, num_class_ori=args.num_class_ori)
     
+    if args.model.lower() == "stcloc" and args.stcloc_steps > 1:
+        from data.composition import SequenceDataset
+        test_set = SequenceDataset(test_set, steps=args.stcloc_steps, skip=args.stcloc_skip)
+
     test_loader = DataLoader(test_set, batch_size=args.batch_size, shuffle=False, num_workers=conf.nThreads)
 
     pred_poses_list, targ_poses_list = [], []
@@ -104,7 +118,14 @@ def test():
             lidar = feed_dict['lidar_float32'].to(device)
             target_pose = feed_dict['pose_float32'].to(device)
 
+            if lidar.dim() == 4: # [B, T, N, 3]
+                B, T, N, C = lidar.shape
+                lidar = lidar.view(B * T, N, C)
+                target_pose = target_pose.view(B * T, -1)
+
             output = model(lidar)
+            if isinstance(output, tuple):
+                output = output[0]
 
             # Process output and target
             output_np = output.cpu().numpy().reshape((-1, 6))
