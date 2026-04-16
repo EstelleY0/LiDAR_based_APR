@@ -218,7 +218,7 @@ def main_worker(rank, world_size, conf, visible_gpus, args):
                     final_loss = pose_loss
 
                 final_loss.backward()
-                torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+                torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=args.clip_grad_norm)
                 optimizer.step()
                 optimizer.zero_grad()
                 now_lr = optimizer.param_groups[0]['lr']
@@ -466,6 +466,7 @@ if __name__ == '__main__':
     parser.add_argument('--divide_factor', type=float, help='Divide factor for lidar points')
     parser.add_argument('--lr', type=float, help='Learning rate')
     parser.add_argument('--weight_decay', type=float, help='Weight decay')
+    parser.add_argument('--clip_grad_norm', type=float, help='Gradient clipping norm')
     
     # Training Loop
     parser.add_argument('--epochs', type=int, help='Total epochs')
