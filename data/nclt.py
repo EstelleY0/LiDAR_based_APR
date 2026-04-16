@@ -15,8 +15,10 @@ set_seed(7)
 
 
 class NCLT(data.Dataset):
-    def __init__(self, data_dir, training):
+    def __init__(self, data_dir, training, num_class_loc=10, num_class_ori=10):
         self.training = training
+        self.num_class_loc = num_class_loc
+        self.num_class_ori = num_class_ori
 
         if self.training:
             sessions = ['2012-01-15',
@@ -97,7 +99,21 @@ class NCLT(data.Dataset):
             for ts in ts_list[:len(positions)]:
                 self.lidar_paths.append(osp.join(lidar_folder, f"{ts}.bin"))
 
+        self.poses = np.array(self.poses)
         assert len(self.lidar_paths) == len(self.poses)
+
+        pose_max_min_file = "nclt_pose_max_min.txt"
+        if self.training:
+            self.pose_max = np.max(self.poses[:, :2], axis=0)
+            self.pose_min = np.min(self.poses[:, :2], axis=0)
+            np.savetxt(pose_max_min_file, np.vstack([self.pose_max, self.pose_min]))
+        else:
+            if osp.exists(pose_max_min_file):
+                max_min = np.loadtxt(pose_max_min_file)
+                self.pose_max, self.pose_min = max_min[0], max_min[1]
+            else:
+                self.pose_max = np.max(self.poses[:, :2], axis=0)
+                self.pose_min = np.min(self.poses[:, :2], axis=0)
 
     def __getitem__(self, index):
         MAX_POINTS = 4096
@@ -120,12 +136,29 @@ class NCLT(data.Dataset):
         projected_lidar = self.project_lidar(lidar)
         projected_lidar = torch.tensor(projected_lidar, dtype=torch.float32)
 
+        x = (self.poses[index][0] - self.pose_min[0]) / (self.pose_max[0] - self.pose_min[0] + 1e-8)
+        y = (self.poses[index][1] - self.pose_min[1]) / (self.pose_max[1] - self.pose_min[1] + 1e-8)
+        x = np.clip(x, 0, 1)
+        y = np.clip(y, 0, 1)
+        x_idx = int(np.minimum(x * self.num_class_loc, self.num_class_loc - 1))
+        y_idx = int(np.minimum(y * self.num_class_loc, self.num_class_loc - 1))
+        cls_loc = x_idx * self.num_class_loc + y_idx
+
+        yaw = self.poses[index][5]
+        theta = np.degrees(yaw)
+        theta = (theta + 180) % 360 - 180
+        
+        cls_ori = (theta + 180) / 360.0
+        cls_ori = int(np.minimum(cls_ori * self.num_class_ori, self.num_class_ori - 1))
+
         return {
             "lidar_float32": lidar[:, :3],
             "projected_lidar_float32": projected_lidar,
             "image_float32": 1,
             "bev_float32": 1,
-            "pose_float32": pose
+            "pose_float32": pose,
+            "cls_loc": torch.tensor(cls_loc, dtype=torch.long),
+            "cls_ori": torch.tensor(cls_ori, dtype=torch.long)
         }
 
     def __len__(self):
