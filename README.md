@@ -58,3 +58,16 @@ Unofficial implementation of LiDAR-based Absolute Pose Regression models
   year={2023}
 }
 ```
+
+## APR-BiCA
+```bibtex
+@article{dai2025apr,
+  title={APR-BiCA: LiDAR-based absolute pose regression with bidirectional cross attention and gating unit},
+  author={Dai, Jianlong and Wang, Hui and Zhao, Yuqian and Liu, Zhihua},
+  journal={Neurocomputing},
+  pages={132404},
+  year={2025},
+  publisher={Elsevier}
+}
+}
+```
