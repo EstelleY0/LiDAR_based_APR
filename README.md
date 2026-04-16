@@ -1,6 +1,20 @@
 # LiDAR_based_APR
 Unofficial implementation of LiDAR-based Absolute Pose Regression models
 
+## Model Stats
+| **Model** | **Params (M)** | **FLOPs (G)** | **Time (ms)** | **Weight (MB)** |
+|:----------|:--------------:|:-------------:|:-------------:|:---------------:|
+| PointLoc  |     3.321      |     5.248     |    132.973    |     12.756      |         
+| PosePN    |     1.460      |     0.592     |     0.103     |      5.606      |          
+| PosePNPP  |     5.878      |    11.330     |    137.064    |     22.542      |         
+| PoseSOE   |     5.254      |     3.165     |    26.168     |     20.148      |         
+| STCLoc    |     9.197      |     0.258     |    23.565     |     51.243      |         
+| HypLiLoc  |     13.818     |     2.737     |    60.725     |     54.819      |
+| APRBiCA   |     5.870      |     1.427     |    50.421     |     22.489      |
+
+------
+
+# Reference
 
 ## PointLoc
 ```bibtex
