@@ -3,9 +3,7 @@ nclt_data_dir: /mnt/sdb1/NCLT
 vReLoc_data_dir: /mnt/sdb1/vReLoc
 
 data_set: robotcar
-
 model: pointloc
-
 gpu_idx: 0,
 nThreads: 16
 divide_factor: 1.0
@@ -13,26 +11,36 @@ lr: 0.001
 weight_decay: 0.001
 
 epochs: 500
+resume_epoch: -1
+epoch_test: 0
+save_freq: 1
+batchsize: 32
+batchsize_test: 1
+folder: gpu1
+from_last: false
+
 early_stop_patience: 30
 early_stop_delta: 0.0
 
+sparse_engine: spconv
+grid_size: 1
+stcloc_steps: 1
+hidden_units: 512
+freeze_backbone: false
 reduce_resolution_factor: 2
 gattnorm: ln
 gattactivation: relu
-
 scene: full8
-grid_size: 1
 feat_dim: 512
-
-save_out: true
-save_fig: false
-save_image: false
-
-exp_name: name
 
 beta: 0.0
 gamma: -3.0
 mask_flip_rate: 0.5
+
+save_out: true
+save_fig: false
+save_image: false
+exp_name: name
 
 bev_type: 'ego'
 bev_resize_size: 128

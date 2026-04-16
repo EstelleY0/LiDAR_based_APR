@@ -35,6 +35,18 @@ from utils.train_utils import setup, cleanup, set_seed, mkdirs, load_state_dict,
 
 
 def main_worker(rank, world_size, conf, visible_gpus, args):
+    epoch = args.resume_epoch
+    global_step = 0
+    model = None
+    optimizer = None
+    train_criterion = None
+    tq_mean_error_best = [10000., 10000., 0, 10000.]
+    tq_median_error_best = [10000., 10000., 0, 10000.]
+    writer = None
+    cur_file_path = os.path.realpath(__file__)
+    ws_path = Path(cur_file_path).parent
+    weights_folder = os.path.join(ws_path, f'{args.folder}', 'models')
+
     try:
         local_gpu_id = visible_gpus[rank]
 
@@ -127,10 +139,6 @@ def main_worker(rank, world_size, conf, visible_gpus, args):
         sampler = DistributedSampler(test_set, num_replicas=world_size, rank=rank, shuffle=False)
         test_loader = DataLoader(test_set, batch_size=args.batchsize, sampler=sampler,
                                  num_workers=conf.nThreads, pin_memory=True, prefetch_factor=2, persistent_workers=True)
-
-        global_step = 0
-        tq_mean_error_best = [10000., 10000., 0, 10000.]
-        tq_median_error_best = [10000., 10000., 0, 10000.]
 
         early_stopping = None
         if rank == 0 and args.early_stop_patience > 0:
@@ -404,14 +412,15 @@ def main_worker(rank, world_size, conf, visible_gpus, args):
         cleanup()
 
     except KeyboardInterrupt:
-        if rank == 0:
+        if rank == 0 and model is not None:
+            print(f"Rank {rank}: Interrupted. Saving current model state to epoch_{epoch}.pth.tar...")
             filename = osp.join(weights_folder, f'epoch_{epoch}.pth.tar')
             torch.save({
                 'epoch': epoch,
                 'global_step': global_step,
                 'model_state_dict': model.module.state_dict(),
-                'optim_state_dict': optimizer.state_dict(),
-                'criterion_state_dict': train_criterion.state_dict(),
+                'optim_state_dict': optimizer.state_dict() if optimizer else None,
+                'criterion_state_dict': train_criterion.state_dict() if train_criterion else None,
                 'tq_mean_error_best': tq_mean_error_best,
                 'tq_median_error_best': tq_median_error_best,
                 'args': args,
@@ -423,16 +432,24 @@ def main_worker(rank, world_size, conf, visible_gpus, args):
 
 
 def run_ddp(args):
-    conf = load_config_as_namespace('conf.yaml')
-
-    visible_devices = conf.gpu_idx
+    visible_devices = args.gpu_idx
 
     visible_gpus = [int(d.strip()) for d in visible_devices.split(",") if d.strip().isdigit()]
     world_size = len(visible_gpus)
 
     print(f"[INFO] CUDA_VISIBLE_DEVICES = '{visible_devices}' → world_size = {world_size}")
-    mp.spawn(main_worker, args=(world_size, conf, visible_gpus, args), nprocs=world_size, join=True)
+    mp.spawn(main_worker, args=(world_size, args, visible_gpus, args), nprocs=world_size, join=True)
 
+
+def str2bool(v):
+    if isinstance(v, bool):
+        return v
+    if v.lower() in ('yes', 'true', 't', 'y', '1'):
+        return True
+    elif v.lower() in ('no', 'false', 'f', 'n', '0'):
+        return False
+    else:
+        raise argparse.ArgumentTypeError('Boolean value expected.')
 
 if __name__ == '__main__':
     os.environ['MASTER_ADDR'] = 'localhost'
@@ -441,23 +458,55 @@ if __name__ == '__main__':
     args = load_config_as_namespace("conf.yaml")
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--data', type=str, default="robotcar", help='Dataset name')
-    parser.add_argument('--model', type=str, default="pointloc", help='Model name (pointloc, posepnpp, posepn, poseminkloc, stcloc, posesoe, hypliloc)')
-    parser.add_argument('--sparse_engine', type=str, default="spconv", choices=["spconv", "minkowski"], help='Sparse engine for PoseMinkLoc')
-    parser.add_argument('--grid_size', type=float, default=0.01, help='Voxel grid size for PoseMinkLoc (meters)')
-    parser.add_argument('--stcloc_steps', type=int, default=1, help='Number of sequence steps for STCLoc temporal attention')
-    parser.add_argument('--hidden_units', type=int, default=512, help='Hidden units for MARegressor (PosePN++)')
-    parser.add_argument('--freeze_backbone', action='store_true', default=False, help='Freeze backbone parameters')
-    parser.add_argument('--resume_epoch', type=int, default=-1, help='Resume epoch number')
-    parser.add_argument('--epoch_test', type=int, default=0, help='Epoch number')
-    parser.add_argument('--epochs', type=int, default=150, help='Epoch number')
-    parser.add_argument('--save_freq', type=int, default=1000, help='Eval save frequency')
-    parser.add_argument('--early_stop_patience', type=int, default=-1, help='Patience for early stopping (default: -1, disabled)')
-    parser.add_argument('--early_stop_delta', type=float, default=0.0, help='Delta for early stopping')
-    parser.add_argument('--batchsize', type=int, default=32, help='Batch size')
-    parser.add_argument('--batchsize_test', type=int, default=1, help='Test batch size')
-    parser.add_argument('--folder', type=str, default='gpu1', help='Folder name for results or config')
-    parser.add_argument('--from_last', type=bool, default=False, help='Load weight from last epoch')
+    # General Settings
+    parser.add_argument('--data_set', type=str, help='Dataset name')
+    parser.add_argument('--model', type=str, help='Model name')
+    parser.add_argument('--gpu_idx', type=str, help='GPU index (e.g., "0,1")')
+    parser.add_argument('--nThreads', type=int, help='Number of data loading threads')
+    parser.add_argument('--divide_factor', type=float, help='Divide factor for lidar points')
+    parser.add_argument('--lr', type=float, help='Learning rate')
+    parser.add_argument('--weight_decay', type=float, help='Weight decay')
+    
+    # Training Loop
+    parser.add_argument('--epochs', type=int, help='Total epochs')
+    parser.add_argument('--resume_epoch', type=int, help='Resume epoch number')
+    parser.add_argument('--epoch_test', type=int, help='Epoch for testing')
+    parser.add_argument('--save_freq', type=int, help='Frequency of evaluation and saving')
+    parser.add_argument('--batchsize', type=int, help='Training batch size')
+    parser.add_argument('--batchsize_test', type=int, help='Test batch size')
+    parser.add_argument('--folder', type=str, help='Output folder')
+    parser.add_argument('--from_last', type=str2bool, help='Load weight from last epoch')
+    
+    # Early Stopping
+    parser.add_argument('--early_stop_patience', type=int, help='Patience for early stopping')
+    parser.add_argument('--early_stop_delta', type=float, help='Delta for early stopping')
+    
+    # Model Specifics
+    parser.add_argument('--sparse_engine', type=str, choices=["spconv", "minkowski"], help='Sparse engine')
+    parser.add_argument('--grid_size', type=float, help='Voxel grid size')
+    parser.add_argument('--stcloc_steps', type=int, help='STCLoc steps')
+    parser.add_argument('--hidden_units', type=int, help='Hidden units for regressor')
+    parser.add_argument('--freeze_backbone', type=str2bool, help='Freeze backbone')
+    parser.add_argument('--reduce_resolution_factor', type=int, help='Resolution reduction factor')
+    parser.add_argument('--gattnorm', type=str, help='Gating norm')
+    parser.add_argument('--gattactivation', type=str, help='Gating activation')
+    parser.add_argument('--scene', type=str, help='Scene name')
+    parser.add_argument('--feat_dim', type=int, help='Feature dimension')
+    
+    # Loss / Criterion
+    parser.add_argument('--beta', type=float, help='Beta parameter for loss')
+    parser.add_argument('--gamma', type=float, help='Gamma parameter for loss')
+    parser.add_argument('--mask_flip_rate', type=float, help='Mask flip rate')
+    
+    # Visualization and Logging
+    parser.add_argument('--save_out', type=str2bool, help='Save output results')
+    parser.add_argument('--save_fig', type=str2bool, help='Save figures')
+    parser.add_argument('--save_image', type=str2bool, help='Save images')
+    parser.add_argument('--exp_name', type=str, help='Experiment name')
+    
+    # BEV Settings
+    parser.add_argument('--bev_type', type=str, help='BEV type')
+    parser.add_argument('--bev_resize_size', type=int, help='BEV resize size')
 
     cli_args = parser.parse_args()
     for key, value in vars(cli_args).items():
