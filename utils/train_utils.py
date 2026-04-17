@@ -82,8 +82,7 @@ def load_state_dict(model, state_dict):
 
     model.load_state_dict(new_state_dict, strict=False)
 
-def set_seed(seed=7):
-    seed = 10
+def set_seed(seed=20):
     random.seed(seed)
     np.random.seed(seed)
     os.environ['PYTHONHASHSEED'] = str(seed)

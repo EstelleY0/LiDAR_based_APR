@@ -116,8 +116,12 @@ def main_worker(rank, world_size, conf, visible_gpus, args):
             {'params': train_criterion.parameters()}
         ]
 
-        optimizer = torch.optim.AdamW(param_list, lr=conf.lr, weight_decay=conf.weight_decay)
-        lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=25, gamma=0.5)
+        if args.model.lower() == "stcloc":
+            optimizer = torch.optim.Adam(param_list, lr=0.001)
+            lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=25, gamma=0.95)
+        else:
+            optimizer = torch.optim.AdamW(param_list, lr=conf.lr, weight_decay=conf.weight_decay)
+            lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=25, gamma=0.5)
 
         cur_file_path = os.path.realpath(__file__)
         ws_path = Path(cur_file_path).parent
@@ -142,10 +146,11 @@ def main_worker(rank, world_size, conf, visible_gpus, args):
 
         stcloc_steps = getattr(args, 'stcloc_steps', 3)
         stcloc_skip = getattr(args, 'stcloc_skip', 1)
+        stcloc_variable_skip = getattr(args, 'variable_skip', False)
         if args.model.lower() == "stcloc" and stcloc_steps > 1:
             from data.composition import SequenceDataset
-            train_set = SequenceDataset(train_set, steps=stcloc_steps, skip=stcloc_skip)
-            test_set = SequenceDataset(test_set, steps=stcloc_steps, skip=stcloc_skip)
+            train_set = SequenceDataset(train_set, steps=stcloc_steps, skip=stcloc_skip, variable_skip=stcloc_variable_skip)
+            test_set = SequenceDataset(test_set, steps=stcloc_steps, skip=stcloc_skip, variable_skip=False)
 
         weights_folder = os.path.join(ws_path, f'{args.folder}', 'models')
 
@@ -271,7 +276,11 @@ def main_worker(rank, world_size, conf, visible_gpus, args):
                         writer.add_scalar('train_criterion/saq', train_criterion.saq.item(), global_step)
                     global_step += 1
 
-            lr_scheduler.step()
+                if args.model.lower() == "stcloc":
+                    lr_scheduler.step()
+
+            if args.model.lower() != "stcloc":
+                lr_scheduler.step()
             torch.cuda.empty_cache()
 
             if rank == 0:
@@ -310,7 +319,10 @@ def main_worker(rank, world_size, conf, visible_gpus, args):
                         if lidar.dim() == 4:
                             B, T, N, C = lidar.shape
                             lidar = lidar.view(B * T, N, C)
-                            pose = pose.view(B * T, -1)
+                            pose = pose.view(B, T, -1)
+                            is_sequence = True
+                        else:
+                            is_sequence = False
 
                         target = pose.clone().detach()
 
@@ -319,9 +331,13 @@ def main_worker(rank, world_size, conf, visible_gpus, args):
                             if isinstance(output, tuple):
                                 output = output[0]
 
-                        s = output.size() # [b,6]
-                        output = output.cpu().detach().numpy().reshape((-1, s[-1]))
-                        target = target.cpu().detach().numpy().reshape((-1, s[-1]))
+                        if is_sequence:
+                            output = output.view(B, T, -1)
+                            output = output[:, -1, :]
+                            target = target[:, -1, :]
+
+                        output = output.cpu().detach().numpy().reshape((-1, 6))
+                        target = target.cpu().detach().numpy().reshape((-1, 6))
 
                         q = [qexp(p[3:]) for p in output]
                         output = np.hstack((output[:, :3], np.asarray(q)))
@@ -497,7 +513,7 @@ def str2bool(v):
 
 if __name__ == '__main__':
     os.environ['MASTER_ADDR'] = 'localhost'
-    os.environ['MASTER_PORT'] = '12355'
+    os.environ['MASTER_PORT'] = '12356'
 
     args = load_config_as_namespace("conf.yaml")
 
