@@ -121,11 +121,19 @@ def test():
             if lidar.dim() == 4: # [B, T, N, 3]
                 B, T, N, C = lidar.shape
                 lidar = lidar.view(B * T, N, C)
-                target_pose = target_pose.view(B * T, -1)
+                target_pose = target_pose.view(B, T, -1)
+                is_sequence = True
+            else:
+                is_sequence = False
 
             output = model(lidar)
             if isinstance(output, tuple):
                 output = output[0]
+
+            if is_sequence:
+                output = output.view(B, T, -1)
+                output = output[:, -1, :]
+                target_pose = target_pose[:, -1, :]
 
             # Process output and target
             output_np = output.cpu().numpy().reshape((-1, 6))

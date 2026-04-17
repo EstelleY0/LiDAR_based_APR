@@ -48,3 +48,4 @@ exp_name: name
 
 bev_type: 'ego'
 bev_resize_size: 128
+variable_skip: true
