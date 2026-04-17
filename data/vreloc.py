@@ -27,6 +27,7 @@ class VReLoc(data.Dataset):
             seq_names = [line.strip() for line in lines if line.strip() and not line.strip().startswith('#')]
             
         self.lidar_paths = []
+        self.projected_paths = []
         self.poses = []
         
         all_positions = []
@@ -35,38 +36,38 @@ class VReLoc(data.Dataset):
             # Map sequenceX to seq-XX
             seq_num = seq_name.replace('sequence', '')
             seq_folder = f"seq-{int(seq_num):02d}"
-            seq_path = osp.join(data_dir, 'full', seq_folder)
             
-            if not osp.exists(seq_path):
-                print(f"Warning: {seq_path} does not exist. Skipping.")
+            pre_lidar_seq_path = osp.join(data_dir, "velodyne_left_fps_4096_3_float32_npy", seq_folder)
+            pre_proj_seq_path = osp.join(data_dir, "projected_lidar_64_720_npy", seq_folder)
+            
+            raw_seq_path = osp.join(data_dir, 'full', seq_folder)
+            if not osp.exists(raw_seq_path):
                 continue
-                
-            frames = sorted([f.replace('.bin', '') for f in os.listdir(seq_path) if f.endswith('.bin')])
+
+            frames = sorted([f.replace('.bin', '') for f in os.listdir(raw_seq_path) if f.endswith('.bin')])
             
             for frame in frames:
-                lidar_path = osp.join(seq_path, f"{frame}.bin")
-                pose_path = osp.join(seq_path, f"{frame}.pose.txt")
-                
+                pose_path = osp.join(raw_seq_path, f"{frame}.pose.txt")
                 if not osp.exists(pose_path):
                     continue
+
+                lidar_path = osp.join(pre_lidar_seq_path, f"{frame}.npy")
+                proj_path = osp.join(pre_proj_seq_path, f"{frame}.npy")
+                
+                if osp.exists(lidar_path) and osp.exists(proj_path):
+                    self.lidar_paths.append(lidar_path)
+                    self.projected_paths.append(proj_path)
                     
-                self.lidar_paths.append(lidar_path)
-                
-                # Load pose 4x4 matrix
-                matrix = np.loadtxt(pose_path, delimiter=',')
-                
-                # Extract translation
-                t = matrix[:3, 3]
-                
-                # Extract rotation and convert to log quaternion
-                R = matrix[:3, :3]
-                q = txq.mat2quat(R)
-                q *= np.sign(q[0]) # constrain to hemisphere
-                q_l = qlog(q)
-                
-                pose_vec = np.concatenate([t, q_l])
-                self.poses.append(pose_vec)
-                all_positions.append(t)
+                    matrix = np.loadtxt(pose_path, delimiter=',')
+                    t = matrix[:3, 3]
+                    R = matrix[:3, :3]
+                    q = txq.mat2quat(R)
+                    q *= np.sign(q[0])
+                    q_l = qlog(q)
+                    
+                    pose_vec = np.concatenate([t, q_l])
+                    self.poses.append(pose_vec)
+                    all_positions.append(t)
                 
         self.poses = np.array(self.poses)
         all_positions = np.array(all_positions)
@@ -104,22 +105,14 @@ class VReLoc(data.Dataset):
         return len(self.lidar_paths)
 
     def __getitem__(self, index):
-        MAX_POINTS = 4096
+        lidar = np.load(self.lidar_paths[index])
+        lidar = lidar[:, :3]
         
-        # Load lidar [x,y,z,i] float32
-        lidar_all = np.fromfile(self.lidar_paths[index], dtype=np.float32).reshape(-1, 4)
-        lidar = lidar_all[:, :3] # only [x,y,z]
-        
-        num_points = lidar.shape[0]
-        if num_points > MAX_POINTS:
-            indices = np.random.choice(num_points, MAX_POINTS, replace=False)
-            lidar = lidar[indices]
-        else:
-            padding = np.zeros((MAX_POINTS - num_points, 3), dtype=np.float32)
-            lidar = np.concatenate([lidar, padding], axis=0)
-            
-        pose = torch.tensor(self.poses[index], dtype=torch.float32)
+        projected_lidar = np.load(self.projected_paths[index])
+
+        projected_lidar = torch.tensor(projected_lidar, dtype=torch.float32)
         lidar = torch.tensor(lidar, dtype=torch.float32)
+        pose = torch.tensor(self.poses[index], dtype=torch.float32)
         
         x = (self.poses[index][0] - self.pose_min[0]) / (self.pose_max[0] - self.pose_min[0] + 1e-8)
         y = (self.poses[index][1] - self.pose_min[1]) / (self.pose_max[1] - self.pose_min[1] + 1e-8)
@@ -142,7 +135,7 @@ class VReLoc(data.Dataset):
             "pose_float32": pose,
             "image_float32": 1,
             "bev_float32": 1,
-            "projected_lidar_float32": 1,
+            "projected_lidar_float32": projected_lidar,
             "cls_loc": torch.tensor(cls_loc, dtype=torch.long),
             "cls_ori": torch.tensor(cls_ori, dtype=torch.long)
         }
