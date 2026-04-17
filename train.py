@@ -248,7 +248,7 @@ def main_worker(rank, world_size, conf, visible_gpus, args):
                             pred_pose, pred_loc, pred_ori, target, cls_loc_target, cls_ori_target
                         )
                     else:
-                        final_loss = train_criterion(output, target)
+                        pose_loss = train_criterion(output, target)
                         final_loss = pose_loss
 
                 final_loss.backward()
