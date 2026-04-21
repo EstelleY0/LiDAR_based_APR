@@ -2,15 +2,15 @@
 Unofficial implementation of LiDAR-based Absolute Pose Regression models
 
 ## Model Stats
-| **Model** | **Params (M)** | **FLOPs (G)** | **Time (ms)** | **Weight (MB)** |   **RobotCar**   | **NCLT** | **vReLoc** |
-|:----------|:--------------:|:-------------:|:-------------:|:---------------:|:----------------:|:--------:|:----------:|
-| PointLoc  |     3.321      |     5.248     |    139.319    |     12.756      |                  |          |            |
+| **Model** | **Params (M)** | **FLOPs (G)** | **Time (ms)** | **Weight (MB)** |    **RobotCar**    | **NCLT** | **vReLoc** |
+|:----------|:--------------:|:-------------:|:-------------:|:---------------:|:------------------:|:--------:|:----------:|
+| PointLoc  |     3.321      |     5.248     |    139.319    |     12.756      |                    |          |            |
 | PosePN    |     1.460      |     0.592     |     0.106     |      5.606      |  [17.02m, 2.66deg](https://drive.google.com/file/d/1u0FTXoYEs4MLv6IzRWbEKWF-64YP37Cg/view?usp=drive_link)  |          |            |
-| PosePNPP  |     5.878      |    11.330     |    135.992    |     22.542      |                  |          |            |
+| PosePNPP  |     5.878      |    11.330     |    135.992    |     22.542      |                    |          |            |
 | PoseSOE   |     5.254      |     3.165     |    27.067     |     20.148      |  [14.85m, 2.06deg](https://drive.google.com/file/d/1ou5Nwamu7Our1p7urGFx0LEELFE2CY8f/view?usp=drive_link)  |          |            |
 | STCLoc    |     9.217      |     0.258     |    23.478     |     35.294      |  [8.82m, 1.51deg](https://drive.google.com/file/d/14C8EHceEgQLoPlPViynAjZi6LdXyrmrq/view?usp=drive_link)  |          |            |
-| HypLiLoc  |     13.818     |     2.737     |    49.074     |     54.819      |                  |          |            |
-| APRBiCA   |     5.870      |     1.427     |    49.355     |     22.489      |                  |          |            |
+| HypLiLoc  |     13.818     |     2.737     |    49.074     |     54.819      |                    |          |            |
+| APRBiCA   |     5.870      |     1.427     |    49.355     |     22.489      |                    |          |            |
 
 
 evaluated w. single 5060ti GPU
