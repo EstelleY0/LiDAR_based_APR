@@ -108,7 +108,7 @@ def main_worker(rank, world_size, conf, visible_gpus, args):
             train_criterion = STCLocCriterion()
         else:
             train_criterion = AtLocCriterion(sax=conf.beta, saq=conf.gamma, learn_beta=True)
-            
+
         train_criterion.to(device)
 
         param_list = [
@@ -116,7 +116,7 @@ def main_worker(rank, world_size, conf, visible_gpus, args):
             {'params': train_criterion.parameters()}
         ]
 
-        if args.model.lower() == "stcloc":
+        if args.model.lower() in ["stcloc", "pointloc"]:
             optimizer = torch.optim.Adam(param_list, lr=0.001)
             lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=25, gamma=0.95)
         else:
@@ -315,7 +315,7 @@ def main_worker(rank, world_size, conf, visible_gpus, args):
                     for batch_idx, feed_dict in enumerate(test_pbar):
                         lidar = feed_dict['lidar_float32'].to(device)
                         pose = feed_dict['pose_float32'].to(device)
-                        
+
                         if lidar.dim() == 4:
                             B, T, N, C = lidar.shape
                             lidar = lidar.view(B * T, N, C)
@@ -527,7 +527,7 @@ if __name__ == '__main__':
     parser.add_argument('--lr', type=float, help='Learning rate')
     parser.add_argument('--weight_decay', type=float, help='Weight decay')
     parser.add_argument('--clip_grad_norm', type=float, help='Gradient clipping norm')
-    
+
     # Training Loop
     parser.add_argument('--epochs', type=int, help='Total epochs')
     parser.add_argument('--resume_epoch', type=int, help='Resume epoch number')
@@ -537,11 +537,11 @@ if __name__ == '__main__':
     parser.add_argument('--batchsize_test', type=int, help='Test batch size')
     parser.add_argument('--folder', type=str, help='Output folder')
     parser.add_argument('--from_last', type=str2bool, help='Load weight from last epoch')
-    
+
     # Early Stopping
     parser.add_argument('--early_stop_patience', type=int, help='Patience for early stopping')
     parser.add_argument('--early_stop_delta', type=float, help='Delta for early stopping')
-    
+
     # Model Specifics
     parser.add_argument('--sparse_engine', type=str, choices=["spconv", "minkowski"], help='Sparse engine')
     parser.add_argument('--grid_size', type=float, help='Voxel grid size')
@@ -556,18 +556,18 @@ if __name__ == '__main__':
     parser.add_argument('--gattactivation', type=str, help='Gating activation')
     parser.add_argument('--scene', type=str, help='Scene name')
     parser.add_argument('--feat_dim', type=int, help='Feature dimension')
-    
+
     # Loss / Criterion
     parser.add_argument('--beta', type=float, help='Beta parameter for loss')
     parser.add_argument('--gamma', type=float, help='Gamma parameter for loss')
     parser.add_argument('--mask_flip_rate', type=float, help='Mask flip rate')
-    
+
     # Visualization and Logging
     parser.add_argument('--save_out', type=str2bool, help='Save output results')
     parser.add_argument('--save_fig', type=str2bool, help='Save figures')
     parser.add_argument('--save_image', type=str2bool, help='Save images')
     parser.add_argument('--exp_name', type=str, help='Experiment name')
-    
+
     # BEV Settings
     parser.add_argument('--bev_type', type=str, help='BEV type')
     parser.add_argument('--bev_resize_size', type=int, help='BEV resize size')
