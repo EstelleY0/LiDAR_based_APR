@@ -276,6 +276,10 @@ def main_worker(rank, world_size, conf, visible_gpus, args):
                         writer.add_scalar('train_criterion/saq', train_criterion.saq.item(), global_step)
                     global_step += 1
 
+                if np.isnan(final_loss.item()):
+                    print(f"Rank {rank}: Detected NaN loss at epoch {epoch}, batch {batch_idx}. Exiting.")
+                    sys.exit(1)
+
                 if args.model.lower() == "stcloc":
                     lr_scheduler.step()
 
@@ -515,9 +519,8 @@ if __name__ == '__main__':
     os.environ['MASTER_ADDR'] = 'localhost'
     os.environ['MASTER_PORT'] = '12356'
 
-    args = load_config_as_namespace("conf.yaml")
-
     parser = argparse.ArgumentParser()
+    parser.add_argument('--config', type=str, default="conf.yaml", help='Path to the configuration file')
     # General Settings
     parser.add_argument('--data_set', type=str, help='Dataset name')
     parser.add_argument('--model', type=str, help='Model name')
@@ -573,8 +576,9 @@ if __name__ == '__main__':
     parser.add_argument('--bev_resize_size', type=int, help='BEV resize size')
 
     cli_args = parser.parse_args()
+    args = load_config_as_namespace(cli_args.config)
     for key, value in vars(cli_args).items():
-        if value is not None:
+        if value is not None and key != 'config':
             setattr(args, key, value)
 
     required_paths = [os.path.join(args.folder, 'runs'),
