@@ -294,17 +294,18 @@ def main_worker(rank, world_size, conf, visible_gpus, args):
                 writer.add_scalar('Epoch/loss_pose_avg', epoch_pose_avg, epoch)
                 print("epoch {:03d} | epoch loss {:.4f}".format(epoch, epoch_avg_loss))
 
-                filename = osp.join(weights_folder, f'epoch_{epoch}.pth.tar')
-                torch.save({
-                    'epoch': epoch,
-                    'global_step': global_step,
-                    'model_state_dict': model.module.state_dict(),
-                    'optim_state_dict': optimizer.state_dict(),
-                    'criterion_state_dict': train_criterion.state_dict(),
-                    'tq_mean_error_best': tq_mean_error_best,
-                    'tq_median_error_best': tq_median_error_best,
-                    'args': args,
-                }, filename)
+                if not args.save_best:
+                    filename = osp.join(weights_folder, f'epoch_{epoch}.pth.tar')
+                    torch.save({
+                        'epoch': epoch,
+                        'global_step': global_step,
+                        'model_state_dict': model.module.state_dict(),
+                        'optim_state_dict': optimizer.state_dict(),
+                        'criterion_state_dict': train_criterion.state_dict(),
+                        'tq_mean_error_best': tq_mean_error_best,
+                        'tq_median_error_best': tq_median_error_best,
+                        'args': args,
+                    }, filename)
 
             if epoch % args.save_freq == 0:
                 model.eval()
@@ -426,17 +427,20 @@ def main_worker(rank, world_size, conf, visible_gpus, args):
                     t_mean, q_mean, t_median, q_median = compute_error(pred_poses_list, targ_poses_list, '', epoch)
 
                     def update_best(txt):
+                        is_best = False
                         txt.append(f'mean:   t {t_mean:.2f} m  q {q_mean:.2f}')
                         txt.append(f'median: t {t_median:.2f} m  q {q_median:.2f}')
                         if t_mean + q_mean < tq_mean_error_best[-1]:
                             tq_mean_error_best[:] = [t_mean, q_mean, epoch, t_mean + q_mean]
+                            is_best = True
                         if t_median + q_median < tq_median_error_best[-1]:
                             tq_median_error_best[:] = [t_median, q_median, epoch, t_median + q_median]
+                            is_best = True
                         txt.append(f'tq mean   best {tq_mean_error_best[0]:.2f}/{tq_mean_error_best[1]:.2f}\t Epoch {tq_mean_error_best[2]}')
                         txt.append(f'tq median best {tq_median_error_best[0]:.2f}/{tq_median_error_best[1]:.2f}\t Epoch {tq_median_error_best[2]}')
-                        return txt
+                        return txt, is_best
 
-                    txt = update_best([
+                    txt, is_best = update_best([
                         f'Train/test {experiment_name}\t Epoch {epoch}\t Lr {now_lr:.6f}\t Time {time.time() - t0:.2f}',
                         '-----------------------'
                     ])
@@ -446,16 +450,17 @@ def main_worker(rank, world_size, conf, visible_gpus, args):
 
                     filename = osp.join(weights_folder, f'epoch_{epoch}.pth.tar')
                     if rank == 0:
-                        torch.save({
-                            'epoch': epoch,
-                            'global_step': global_step,
-                            'model_state_dict': model.module.state_dict(),
-                            'optim_state_dict': optimizer.state_dict(),
-                            'criterion_state_dict': train_criterion.state_dict(),
-                            'tq_mean_error_best': tq_mean_error_best,
-                            'tq_median_error_best': tq_median_error_best,
-                            'args': args,
-                        }, filename)
+                        if not args.save_best or is_best:
+                            torch.save({
+                                'epoch': epoch,
+                                'global_step': global_step,
+                                'model_state_dict': model.module.state_dict(),
+                                'optim_state_dict': optimizer.state_dict(),
+                                'criterion_state_dict': train_criterion.state_dict(),
+                                'tq_mean_error_best': tq_mean_error_best,
+                                'tq_median_error_best': tq_median_error_best,
+                                'args': args,
+                            }, filename)
 
                 stop_signal = torch.tensor(0).to(device)
                 if rank == 0 and early_stopping is not None:
@@ -540,6 +545,7 @@ if __name__ == '__main__':
     parser.add_argument('--batchsize_test', type=int, help='Test batch size')
     parser.add_argument('--folder', type=str, help='Output folder')
     parser.add_argument('--from_last', type=str2bool, help='Load weight from last epoch')
+    parser.add_argument('--save_best', type=str2bool, default=True, help='Only save best epochs weight')
 
     # Early Stopping
     parser.add_argument('--early_stop_patience', type=int, help='Patience for early stopping')
@@ -580,6 +586,9 @@ if __name__ == '__main__':
     for key, value in vars(cli_args).items():
         if value is not None and key != 'config':
             setattr(args, key, value)
+
+    if args.folder is None:
+        args.folder = Path(cli_args.config).stem
 
     required_paths = [os.path.join(args.folder, 'runs'),
                       os.path.join(args.folder, 'models'),
