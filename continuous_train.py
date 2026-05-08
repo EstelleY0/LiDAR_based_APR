@@ -24,7 +24,7 @@ def run_training():
 
         try:
             result = subprocess.run(
-                ["python", "train.py", "--config", config_path],
+                ["python3", "train.py", "--config", config_path],
                 check=False
             )
 
