@@ -10,6 +10,7 @@ from utils.train_utils import set_seed
 import cv2
 import struct
 import scipy.interpolate
+from model.pointnet.pointnet_utils import farthest_point_sample
 
 set_seed(7)
 
@@ -124,7 +125,10 @@ class NCLT(data.Dataset):
         num_points = lidar.shape[0]
 
         if num_points > MAX_POINTS:
-            indices = np.random.choice(num_points, MAX_POINTS, replace=False)
+            # Use Farthest Point Sampling instead of random choice
+            lidar_xyz = torch.from_numpy(lidar[:, :3]).unsqueeze(0)
+            indices = farthest_point_sample(lidar_xyz, MAX_POINTS)
+            indices = indices.squeeze(0).numpy()
             lidar = lidar[indices]
         else:
             padding = np.zeros((MAX_POINTS - num_points, 5), dtype=np.float32)
