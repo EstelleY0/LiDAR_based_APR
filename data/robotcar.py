@@ -8,6 +8,7 @@ import transforms3d.euler as txe
 from PIL import Image
 from torch.utils import data
 
+from model.pointnet.pointnet_utils import farthest_point_sample, index_points
 from robotcar_dataset_sdk_pointloc.python.interpolate_poses import interpolate_ins_poses
 from utils.train_utils import load_config_as_namespace
 from utils.train_utils import process_poses
@@ -117,10 +118,14 @@ class RobotCar(data.Dataset):
 
         pose = self.poses[index].copy()
 
-        shuffle_ids = np.random.choice(len(lidar), size=len(lidar), replace=False)
-        lidar = lidar[shuffle_ids]
-
         lidar = torch.tensor(lidar, dtype=torch.float32)
+        if lidar.shape[0] > 4096:
+            fps_idx = farthest_point_sample(lidar.unsqueeze(0), 4096)
+            lidar = index_points(lidar.unsqueeze(0), fps_idx).squeeze(0)
+        elif lidar.shape[0] < 4096:
+            choice = np.random.choice(lidar.shape[0], 4096, replace=True)
+            lidar = lidar[choice]
+
         lidar = lidar / conf.divide_factor
 
         data_transform = []
