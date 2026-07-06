@@ -158,6 +158,8 @@ def test():
     # Calculate errors
     pred_poses = np.vstack(pred_poses_list)
     targ_poses = np.vstack(targ_poses_list)
+    np.save('pred_poses.npy', pred_poses)
+    np.save('gt_poses.npy', targ_poses)
 
     t_err = np.linalg.norm(pred_poses[:, :3] - targ_poses[:, :3], axis=1)
     q_err = np.array([quaternion_angular_error(p[3:], t[3:]) for p, t in zip(pred_poses, targ_poses)])
